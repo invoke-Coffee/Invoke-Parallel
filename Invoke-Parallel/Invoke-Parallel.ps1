@@ -263,8 +263,18 @@
 
                     #run through each runspace.           
                     Foreach($runspace in $runspaces) {
+
+                        #get start time of job - accurate
+                          if (
+                              ($Runspace.started -eq $null) -and
+                              ($Runspace.powershell.Streams.Debug[0].Message -match 'Start')
+                              )
+                              {
+                                    $StartTicks = $Runspace.powershell.Streams.Debug[0].Message -replace '[^0-9]'
+                                    $Runspace.Started = [Datetime]::MinValue + [TimeSpan]::FromTicks($StartTicks)
+                              }
                     
-                        #get the duration - inaccurate
+                        #get the duration - accurate
                         $currentdate = Get-Date
                         $runtime = $currentdate - $runspace.startTime
                         $runMin = [math]::Round( $runtime.totalminutes ,2 )
@@ -355,10 +365,10 @@
         
         #region Init
             #Adding start and ending timeing to script block
-            $begin = [string]('$DebugPreference = "Continue"
+            $Scriptbegin = [string]('$DebugPreference = "Continue"
                                 Write-Debug "Start(Ticks) = $((get-date).Ticks)"
                                 ')
-            $ending = [string]('$DebugPreference = "Continue" 
+            $ScriptEnding = [string]('$DebugPreference = "Continue" 
                                 Write-Debug "End(Ticks) = $((get-date).Ticks)"
                                 ')
 
@@ -366,7 +376,7 @@
             {
 
                 $ScriptBlock = [scriptblock]::Create( $(
-                        $begin + (Get-Content $ScriptFile | out-string) + $ending
+                        $Scriptbegin + (Get-Content $ScriptFile | out-string) + $ScriptEnding
                         ))
             }
             elseif($PSCmdlet.ParameterSetName -eq 'ScriptBlock')
@@ -426,7 +436,7 @@
                         $StringScriptBlock = $GetWithInputHandlingForInvokeCommandImpl.Invoke($ScriptBlock.ast,@($Tuple))
 
                         $ScriptBlock = [scriptblock]::Create($(
-                                            $begin + $StringScriptBlock + $ending
+                                            $Scriptbegin + $StringScriptBlock + $ScriptEnding
                                             ))
 
                         Write-Verbose $StringScriptBlock
