@@ -554,7 +554,7 @@
                     #Create a temporary collection for each runspace
                     $temp = "" | Select-Object PowerShell, StartTime, object, Runspace
                     $temp.PowerShell = $powershell
-                    $temp.StartTime = Get-Date
+                    $temp.StartTime = $null
                     $temp.object = $object
     
                     #Save the handle output when calling BeginInvoke() that will be used later to end the runspace
