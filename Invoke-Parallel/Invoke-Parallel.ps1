@@ -354,10 +354,20 @@
         #endregion functions
         
         #region Init
+            #Adding start and ending timeing to script block
+            $begin = [string]('$DebugPreference = "Continue"
+                                Write-Debug "Start(Ticks) = $((get-date).Ticks)"
+                                ')
+            $ending = [string]('$DebugPreference = "Continue" 
+                                Write-Debug "End(Ticks) = $((get-date).Ticks)"
+                                ')
 
             if($PSCmdlet.ParameterSetName -eq 'ScriptFile')
             {
-                $ScriptBlock = [scriptblock]::Create( $(Get-Content $ScriptFile | out-string) )
+
+                $ScriptBlock = [scriptblock]::Create( $(
+                        $begin + (Get-Content $ScriptFile | out-string) + $ending
+                        ))
             }
             elseif($PSCmdlet.ParameterSetName -eq 'ScriptBlock')
             {
@@ -415,7 +425,9 @@
         
                         $StringScriptBlock = $GetWithInputHandlingForInvokeCommandImpl.Invoke($ScriptBlock.ast,@($Tuple))
 
-                        $ScriptBlock = [scriptblock]::Create($StringScriptBlock)
+                        $ScriptBlock = [scriptblock]::Create($(
+                                            $begin + $StringScriptBlock + $ending
+                                            ))
 
                         Write-Verbose $StringScriptBlock
                     }
