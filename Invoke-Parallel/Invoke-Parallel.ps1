@@ -474,7 +474,7 @@
             }
 
             #Create runspace pool
-            $runspacepool = [runspacefactory]::CreateRunspacePool(1, $Throttle, $sessionstate, $Host)
+            $runspacepool = [runspacefactory]::CreateRunspacePool(1, $Throttle, $sessionstate)
             $runspacepool.Open() 
 
             Write-Verbose "Creating empty collection to hold runspace jobs"
