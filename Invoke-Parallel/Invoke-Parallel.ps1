@@ -245,7 +245,7 @@
             
             Function Get-RunspaceData {
                 [cmdletbinding()]
-                param( [switch]$Wait )
+                param([switch]$Wait )
 
                 #loop through runspaces
                 #if $wait is specified, keep looping until all complete
@@ -266,24 +266,32 @@
 
                         #get start time of job - accurate
                           if (
-                              ($Runspace.started -eq $null) -and
-                              ($Runspace.powershell.Streams.Debug[0].Message -match 'Start')
+                                ($Runspace.powershell.Streams.Debug -ne $null) -and
+                                ($Runspace.powershell.Streams.Debug[0].Message -match 'Start')
                               )
                               {
                                     $StartTicks = $Runspace.powershell.Streams.Debug[0].Message -replace '[^0-9]'
-                                    $Runspace.Started = [Datetime]::MinValue + [TimeSpan]::FromTicks($StartTicks)
+                                    $Runspace.StartTime = [Datetime]::MinValue + [TimeSpan]::FromTicks($StartTicks)
                               }
                     
-                        #get the duration - accurate
-                        $currentdate = Get-Date
-                        $runtime = $currentdate - $runspace.startTime
-                        $runMin = [math]::Round( $runtime.totalminutes ,2 )
-
-                        #set up log object
                         $log = "" | select Date, Action, Runtime, Status, Details
-                        $log.Action = "Removing:'$($runspace.object)'"
-                        $log.Date = $currentdate
-                        $log.Runtime = "$runMin minutes"
+
+                        #get the duration - accurate
+                        if($runspace.StartTime -ne $null){
+                            $currentdate = Get-Date
+                            $runtime = $currentdate - $runspace.startTime
+                            $runMin = [math]::Round( $runtime.totalminutes ,2 )
+
+                            #set up log object
+                            
+                            $log.Action = "Removing:'$($runspace.object)'"
+                            $log.Date = $currentdate
+                            $log.Runtime = "$runMin minutes"
+
+                        }
+
+                        Write-Verbose $runspace.StartTime
+                        Write-Verbose $runtime.TotalSeconds
 
                         #If runspace completed, end invoke, dispose, recycle, counter++
                         If ($runspace.Runspace.isCompleted) {
@@ -316,7 +324,10 @@
                         }
 
                         #If runtime exceeds max, dispose the runspace
-                        ElseIf ( $runspaceTimeout -ne 0 -and $runtime.totalseconds -gt $runspaceTimeout) {
+                        ElseIf (    ($runspaceTimeout -ne 0) -and 
+                                    ($runtime.totalseconds -lt $runspaceTimeout) -and
+                                    ($runspace.StartTime -ne $null) 
+                            ) {
                             
                             $script:completedCount++
                             $timedOutTasks = $true
@@ -375,9 +386,7 @@
             if($PSCmdlet.ParameterSetName -eq 'ScriptFile')
             {
 
-                $ScriptBlock = [scriptblock]::Create( $(
-                        $Scriptbegin + (Get-Content $ScriptFile | out-string) + $ScriptEnding
-                        ))
+                $ScriptBlock = [scriptblock]::Create($((Get-Content $ScriptFile | out-string)))
             }
             elseif($PSCmdlet.ParameterSetName -eq 'ScriptBlock')
             {
@@ -435,9 +444,7 @@
         
                         $StringScriptBlock = $GetWithInputHandlingForInvokeCommandImpl.Invoke($ScriptBlock.ast,@($Tuple))
 
-                        $ScriptBlock = [scriptblock]::Create($(
-                                            $Scriptbegin + $StringScriptBlock + $ScriptEnding
-                                            ))
+                        $ScriptBlock = [scriptblock]::Create($($StringScriptBlock))
 
                         Write-Verbose $StringScriptBlock
                     }
@@ -449,6 +456,10 @@
             {
                 Throw "Must provide ScriptBlock or ScriptFile"; Break
             }
+            
+            $ScriptBlock = [scriptblock]::Create( $(
+                        $Scriptbegin + $ScriptBlock + $ScriptEnding
+                        ))
 
             Write-Debug "`$ScriptBlock: $($ScriptBlock | Out-String)"
             Write-Verbose "Creating runspace pool and session states"
@@ -484,7 +495,9 @@
             }
 
             #Create runspace pool
-            $runspacepool = [runspacefactory]::CreateRunspacePool(1, $Throttle, $sessionstate)
+            $runspacepool = [runspacefactory]::CreateRunspacePool($sessionstate)
+            $runspacepool.SetMinRunspaces('1') | Out-Null
+            $runspacepool.SetMaxRunspaces($Throttle) | Out-Null
             $runspacepool.Open() 
 
             Write-Verbose "Creating empty collection to hold runspace jobs"
@@ -584,7 +597,7 @@
                     $startedCount++
 
                     #Add the temp tracking info to $runspaces collection
-                    Write-Verbose ( "Adding {0} to collection at {1}" -f $temp.object, $temp.starttime.tostring() )
+                    Write-Verbose ( "Adding {0} to collection" -f $temp.object )
                     $runspaces.Add($temp) | Out-Null
             
                     #loop through existing runspaces one time
