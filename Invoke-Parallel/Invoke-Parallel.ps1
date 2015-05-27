@@ -290,8 +290,6 @@
 
                         }
 
-                        Write-Verbose $runspace.StartTime
-                        Write-Verbose $runtime.TotalSeconds
 
                         #If runspace completed, end invoke, dispose, recycle, counter++
                         If ($runspace.Runspace.isCompleted) {
@@ -376,17 +374,20 @@
         
         #region Init
             #Adding start and ending timeing to script block
-            $Scriptbegin = [string]('$DebugPreference = "Continue"
+            $Scriptbegin = [string]('
+                                $DebugPreference = "Continue"
                                 Write-Debug "Start(Ticks) = $((get-date).Ticks)"
                                 ')
-            $ScriptEnding = [string]('$DebugPreference = "Continue" 
+            $ScriptEnding = [string]('
+                                $DebugPreference = "Continue" 
                                 Write-Debug "End(Ticks) = $((get-date).Ticks)"
                                 ')
 
             if($PSCmdlet.ParameterSetName -eq 'ScriptFile')
             {
 
-                $ScriptBlock = [scriptblock]::Create($((Get-Content $ScriptFile | out-string)))
+                $ScriptBlock = [scriptblock]::Create($(
+                $Scriptbegin + (Get-Content $ScriptFile | out-string) + $ScriptEnding))
             }
             elseif($PSCmdlet.ParameterSetName -eq 'ScriptBlock')
             {
@@ -450,16 +451,18 @@
                     }
                 }
                 
-                $ScriptBlock = $ExecutionContext.InvokeCommand.NewScriptBlock("param($($ParamsToAdd -Join ", "))`r`n" + $Scriptblock.ToString())
+                $ScriptBlock = [scriptblock]::Create(
+                                    "param($($ParamsToAdd -Join ", "))`r`n" + `
+                                    $Scriptbegin.ToString() + `
+                                    $Scriptblock.ToString() + `
+                                    $ScriptEnding.ToString()
+                                )
             }
             else
             {
                 Throw "Must provide ScriptBlock or ScriptFile"; Break
             }
             
-            $ScriptBlock = [scriptblock]::Create( $(
-                        $Scriptbegin + $ScriptBlock + $ScriptEnding
-                        ))
 
             Write-Debug "`$ScriptBlock: $($ScriptBlock | Out-String)"
             Write-Verbose "Creating runspace pool and session states"
